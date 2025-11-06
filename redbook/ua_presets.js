@@ -63,14 +63,14 @@ function buildSecChUa(brands) {
   // 读取用户在 Settings 面板选择的 preset
   let presetKey = DEFAULT_PRESET;
   try {
-    if (typeof $argument !== 'undefined' && $argument) {
-      // 参数可能是对象 {preset: "mac"} 或直接是字符串 "mac"
-      const argValue = typeof $argument === 'object' && $argument.preset ? $argument.preset : $argument;
-      if (argValue && (argValue in PRESETS)) {
-        presetKey = argValue;
+    if (typeof $argument !== 'undefined' && $argument && $argument.preset) {
+      // 从参数中获取 preset 值
+      presetKey = $argument.preset;
+      if (presetKey && (presetKey in PRESETS)) {
         $persistentStore.write(presetKey, STORE_KEY);
       }
     } else if (typeof $persistentStore !== 'undefined' && $persistentStore.read) {
+      // 从持久化存储中读取之前保存的值
       const v = $persistentStore.read(STORE_KEY);
       if (v && (v in PRESETS)) presetKey = v;
     }
@@ -78,21 +78,28 @@ function buildSecChUa(brands) {
 
   const preset = PRESETS[presetKey] || PRESETS[DEFAULT_PRESET];
 
+  // 复制原始请求头
   const headers = Object.assign({}, $request.headers || {});
+  
+  // 修改 User-Agent（统一使用小写，HTTP 头不区分大小写）
   headers['User-Agent'] = preset.ua;
   headers['user-agent'] = preset.ua;
 
+  // 修改 sec-ch-ua* 相关请求头
   try {
     const scua = buildSecChUa(preset.brands);
     headers['sec-ch-ua'] = scua;
     headers['sec-ch-ua-mobile'] = preset.mobile === "1" ? "?1" : "?0";
-    headers['sec-ch-ua-platform'] = preset.platform || '';
+    headers['sec-ch-ua-platform'] = '"' + preset.platform + '"';
     headers['sec-ch-ua-full-version-list'] = (preset.brands || []).map(b => `"${b.brand}";v="${b.version || '0'}"`).join(', ');
+    
+    // 同时设置大写版本（某些浏览器可能使用）
     headers['Sec-CH-UA'] = headers['sec-ch-ua'];
     headers['Sec-CH-UA-Mobile'] = headers['sec-ch-ua-mobile'];
     headers['Sec-CH-UA-Platform'] = headers['sec-ch-ua-platform'];
   } catch(e){}
 
+  // 返回修改后的请求头
   $done({ headers: headers });
 })();
 
