@@ -33,19 +33,19 @@
       },
   
       mac: {
-        ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+        ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
         platform: "MacIntel",
-        appVersion: "5.0 (Macintosh; Intel Mac OS X 14_0)",
-        vendor: "Apple Computer, Inc.",
+        appVersion: "5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+        vendor: "Google Inc.",
         uaData: {
-          brands: [{ brand: "Safari", version: "17" }],
+          brands: [{ brand: "Google Chrome", version: "141" }, { brand: "Not?A_Brand", version: "8" }, { brand: "Chromium", version: "141" }],
           mobile: false,
           platform: "macOS",
           highEntropy: {
             architecture: "x86",
             model: "",
-            platformVersion: "14.0",
-            fullVersionList: [{ brand: "Safari", version: "17.0" }]
+            platformVersion: "10.15.7",
+            fullVersionList: [{ brand: "Google Chrome", version: "141.0.0.0" }, { brand: "Chromium", version: "141.0.0.0" }]
           }
         }
       },

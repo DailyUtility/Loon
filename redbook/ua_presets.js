@@ -17,10 +17,10 @@ const PRESETS = {
     brands: [{ brand: "Safari", version: "17" }]
   },
   mac: {
-    ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+    ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
     platform: "macOS",
     mobile: "0",
-    brands: [{ brand: "Safari", version: "17" }]
+    brands: [{ brand: "Google Chrome", version: "141" }, { brand: "Not?A_Brand", version: "8" }, { brand: "Chromium", version: "141" }]
   },
   ipad: {
     ua: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/605.1.15",
@@ -98,6 +98,31 @@ function buildSecChUa(brands) {
     headers['Sec-CH-UA-Mobile'] = headers['sec-ch-ua-mobile'];
     headers['Sec-CH-UA-Platform'] = headers['sec-ch-ua-platform'];
   } catch(e){}
+
+  // 当使用 mac preset 时，修改 Cookie 和 sec-fetch-site
+  if (presetKey === 'mac') {
+    try {
+      // 修改 Cookie 中的 xsecappid
+      if (headers['Cookie'] || headers['cookie']) {
+        const cookieHeader = headers['Cookie'] || headers['cookie'];
+        let newCookie = cookieHeader;
+        // 将 xsecappid=ranchi 替换为 xsecappid=xhs-pc-web
+        newCookie = newCookie.replace(/xsecappid=ranchi/g, 'xsecappid=xhs-pc-web');
+        // 如果 Cookie 中没有 xsecappid，则添加（但通常应该已经存在）
+        if (!newCookie.includes('xsecappid=')) {
+          newCookie = (newCookie ? newCookie + '; ' : '') + 'xsecappid=xhs-pc-web';
+        }
+        headers['Cookie'] = newCookie;
+        headers['cookie'] = newCookie;
+      }
+      
+      // 修改 sec-fetch-site（如果是导航请求，设为 none）
+      if (headers['sec-fetch-dest'] === 'document' || headers['Sec-Fetch-Dest'] === 'document') {
+        headers['sec-fetch-site'] = 'none';
+        headers['Sec-Fetch-Site'] = 'none';
+      }
+    } catch(e){}
+  }
 
   // 返回修改后的请求头
   $done({ headers: headers });
