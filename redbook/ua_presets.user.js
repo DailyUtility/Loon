@@ -127,12 +127,16 @@
     // --------------- 选择/自动选择（修改这里） ------------------
     // 可把 SELECT_TARGET 改为 'ios'/'mac'/'ipad'/'android'/'windows'/'linux'
     // 或把 AUTO_SELECT = true 让脚本尝试根据原始 navigator 自动选择一个最接近的 preset（best-effort）
-    const AUTO_SELECT = true;
-    let SELECT_TARGET = 'ios'; // 默认，如果 AUTO_SELECT = true 则可能被覆盖
+    // 注意：要在 iPhone 上模拟 PC，必须设置 AUTO_SELECT = false 并选择 'mac' 或 'windows'
+    const AUTO_SELECT = false; // 改为 false 以强制使用 SELECT_TARGET
+    let SELECT_TARGET = 'mac'; // 默认使用 mac（PC端），如果 AUTO_SELECT = true 则可能被覆盖
     // ------------------------------------------------------------
   
     function autoPickPreset() {
       try {
+        // 注意：这里读取的是原始的 navigator.userAgent（在覆盖之前）
+        // 如果 Loon 插件已经修改了 HTTP 请求头，但 JavaScript 的 navigator 还是原始的
+        // 所以如果要在 iPhone 上模拟 PC，应该设置 AUTO_SELECT = false
         const uaLower = (navigator.userAgent || "").toLowerCase();
         if (/iphone|ipad|ipod|ios/.test(uaLower)) {
           return uaLower.includes('ipad') ? 'ipad' : 'ios';
@@ -145,6 +149,8 @@
       return SELECT_TARGET;
     }
   
+    // 如果启用了自动选择，根据原始 UA 选择 preset
+    // 注意：在 iPhone 上要模拟 PC，必须设置 AUTO_SELECT = false 并手动选择 'mac' 或 'windows'
     if (AUTO_SELECT) {
       SELECT_TARGET = autoPickPreset();
     }
@@ -270,16 +276,22 @@
   
     function overrideMediaQueriesForPC() {
       try {
-        // PC端：覆盖媒体查询
+        // PC端：覆盖媒体查询，让所有移动端媒体查询返回 false
         const origMatchMedia = window.matchMedia;
         window.matchMedia = function(query) {
-          const result = origMatchMedia.call(this, query);
-          // 如果查询包含移动端相关的媒体查询，返回false
           if (query && typeof query === 'string') {
             const q = query.toLowerCase();
-            if (q.includes('max-width') && q.includes('768')) {
+            // 检测移动端相关的媒体查询
+            const isMobileQuery = 
+              (q.includes('max-width') && (q.includes('768') || q.includes('767') || q.includes('480'))) ||
+              (q.includes('max-device-width')) ||
+              (q.includes('orientation') && q.includes('portrait')) ||
+              (q.includes('pointer') && q.includes('coarse')) ||
+              (q.includes('hover') && q.includes('none'));
+            
+            if (isMobileQuery) {
               // 移动端媒体查询，返回不匹配
-              return {
+              const fakeResult = {
                 matches: false,
                 media: query,
                 onchange: null,
@@ -289,10 +301,83 @@
                 removeEventListener: function() {},
                 dispatchEvent: function() { return false; }
               };
+              return fakeResult;
             }
           }
-          return result;
+          return origMatchMedia.call(this, query);
         };
+      } catch (e) {}
+    }
+    
+    function overrideViewportMetaTag() {
+      try {
+        // 在页面加载前修改或添加 viewport meta tag
+        const observer = new MutationObserver(function(mutations) {
+          mutations.forEach(function(mutation) {
+            if (mutation.type === 'childList') {
+              mutation.addedNodes.forEach(function(node) {
+                if (node.nodeType === 1 && node.tagName === 'META') {
+                  const name = node.getAttribute('name');
+                  if (name && name.toLowerCase() === 'viewport') {
+                    // 修改 viewport 为 PC 端样式（允许缩放，设置较大的宽度）
+                    node.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes');
+                  }
+                }
+              });
+            }
+          });
+        });
+        
+        // 监听 head 标签的变化
+        if (document.head) {
+          observer.observe(document.head, { childList: true, subtree: true });
+        }
+        
+        // 也尝试直接修改现有的 viewport meta tag
+        const viewportMeta = document.querySelector('meta[name="viewport"]');
+        if (viewportMeta) {
+          viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes');
+        }
+      } catch (e) {}
+    }
+    
+    function overrideOrientationForPC() {
+      try {
+        // PC端：覆盖设备方向相关属性
+        if (screen.orientation) {
+          Object.defineProperty(screen, 'orientation', {
+            get: () => ({
+              angle: 0,
+              type: 'landscape-primary',
+              onchange: null,
+              addEventListener: function() {},
+              removeEventListener: function() {},
+              lock: function() { return Promise.resolve(); },
+              unlock: function() {}
+            }),
+            configurable: true
+          });
+        }
+        
+        // 覆盖 window.orientation（已废弃但可能仍在使用）
+        Object.defineProperty(window, 'orientation', {
+          get: () => 0, // 0 表示竖屏，90/-90 表示横屏，PC 通常是 0
+          configurable: true
+        });
+      } catch (e) {}
+    }
+    
+    function overridePointerEventsForPC() {
+      try {
+        // PC端：覆盖指针事件检测
+        // navigator.maxTouchPoints 已经在 overrideTouchSupportForPC 中处理了
+        // 这里添加更多指针相关的检测
+        
+        // 覆盖 PointerEvent 相关检测（如果存在）
+        if (window.PointerEvent) {
+          // PC 端通常支持鼠标指针，不支持触摸指针
+          // 但为了兼容性，我们保持原样，主要依赖 maxTouchPoints = 0
+        }
       } catch (e) {}
     }
   
@@ -372,6 +457,15 @@
       overrideMediaQueriesForPC();
       overrideHardwareConcurrencyForPC();
       overrideConnectionForPC();
+      overrideOrientationForPC();
+      overridePointerEventsForPC();
+      
+      // viewport meta tag 修改需要在 DOM 加载后执行
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', overrideViewportMetaTag);
+      } else {
+        overrideViewportMetaTag();
+      }
     } else if (isMobilePlatform) {
       overrideScreenPropertiesForMobile();
       overrideTouchSupportForMobile();

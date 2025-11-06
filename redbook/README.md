@@ -112,11 +112,38 @@ const AUTO_SELECT = true;
 
 这样可以最大程度地绕过小红书的设备检测。
 
+### 两者的关系和区别
+
+**Loon 插件** 和 **UserScript** 是**独立工作**的，不会互相影响：
+
+- **Loon 插件** (`ua_presets.js`)：
+  - 修改的是 **HTTP 请求头**中的 User-Agent
+  - 服务器接收请求时看到的是修改后的 UA
+  - 不影响浏览器 JavaScript 环境
+
+- **UserScript** (`ua_presets.user.js`)：
+  - 修改的是 **JavaScript** 中的 `navigator.userAgent` 等属性
+  - 页面 JavaScript 代码执行时看到的是修改后的值
+  - 不影响 HTTP 请求头
+
+**重要提示**：
+- 如果只使用 Loon 插件，服务器可能认为这是 PC 请求，但页面 JavaScript 检测时仍会发现是移动设备
+- 如果只使用 UserScript，页面 JavaScript 可能认为这是 PC，但服务器仍会收到移动设备的请求头
+- **必须两者配合使用**才能完全绕过检测
+
 ## 注意事项
 
 1. **选择正确的平台预设**：
-   - 如果要在移动端浏览器访问，选择 `mac` 或 `windows`（PC 端预设）
-   - 如果要在 PC 端访问，选择 `ios` 或 `android`（移动端预设）
+   
+   - **在 iPhone 上模拟 PC**：
+     - Loon 插件：在设置面板选择 `mac` 或 `windows`
+     - UserScript：设置 `AUTO_SELECT = false` 和 `SELECT_TARGET = 'mac'`（已默认配置）
+   
+   - **在 PC 上模拟移动端**：
+     - Loon 插件：在设置面板选择 `ios` 或 `android`
+     - UserScript：设置 `AUTO_SELECT = false` 和 `SELECT_TARGET = 'ios'` 或 `'android'`
+   
+   - **注意**：UserScript 的 `AUTO_SELECT = true` 会根据**原始的** `navigator.userAgent` 自动选择，在 iPhone 上会选到 `ios`，所以必须设置为 `false` 并手动选择目标平台
 
 2. **清除缓存**：
    - 修改设置后，建议清除浏览器缓存和 Cookie
@@ -143,10 +170,13 @@ const AUTO_SELECT = true;
 - `navigator.hardwareConcurrency`
 - `navigator.connection.type`
 - `screen.width` / `screen.height` / `screen.availWidth` / `screen.availHeight`
+- `screen.orientation`（设备方向）
 - `window.innerWidth` / `window.innerHeight` / `window.outerWidth` / `window.outerHeight`
 - `window.devicePixelRatio`
+- `window.orientation`（已废弃但可能仍在使用）
 - `window.ontouchstart` / `window.ontouchmove` / `window.ontouchend`
-- `window.matchMedia()` 返回值
+- `window.matchMedia()` 返回值（覆盖移动端媒体查询）
+- `viewport` meta tag（修改为 PC 端样式）
 
 ### Loon 脚本修改的请求头
 
