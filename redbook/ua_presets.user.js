@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         UA Presets (iOS / Mac / iPad / Android / Windows / Linux)
 // @namespace    https://example.local/
-// @version      1.1
-// @description  在页面 JS 可见层面伪造 navigator.*，提供 6 个预设（ios, mac, ipad, android, windows, linux），修改 SELECT_TARGET 即可切换（仅影响页面 JS，不改变 HTTP 请求头）
+// @version      1.2
+// @description  在页面 JS 可见层面伪造设备信息，提供 6 个预设（ios, mac, ipad, android, windows, linux）。覆盖 navigator.*、屏幕尺寸、触摸支持、媒体查询、硬件信息等，用于绕过网站的设备检测（仅影响页面 JS，不改变 HTTP 请求头）
 // @match        *://*/*
 // @run-at       document-start
 // @grant        none
@@ -151,6 +151,12 @@
   
     const preset = UA_PRESETS[SELECT_TARGET] || UA_PRESETS.mac;
   
+    // 判断平台类型
+    const MOBILE_PLATFORMS = ['ios', 'ipad', 'android'];
+    const PC_PLATFORMS = ['mac', 'windows', 'linux'];
+    const isMobilePlatform = MOBILE_PLATFORMS.includes(SELECT_TARGET);
+    const isPCPlatform = PC_PLATFORMS.includes(SELECT_TARGET);
+  
     // ----------------- 覆盖函数（尽早执行） -----------------
     function defineProp(obj, name, valueGetter) {
       try {
@@ -197,6 +203,131 @@
       } catch (e) {}
     }
   
+    function overrideScreenPropertiesForPC() {
+      try {
+        // PC端：大屏幕尺寸
+        Object.defineProperty(screen, 'width', { get: () => 1920, configurable: true });
+        Object.defineProperty(screen, 'height', { get: () => 1080, configurable: true });
+        Object.defineProperty(screen, 'availWidth', { get: () => 1920, configurable: true });
+        Object.defineProperty(screen, 'availHeight', { get: () => 1040, configurable: true });
+        Object.defineProperty(window, 'innerWidth', { get: () => 1920, configurable: true });
+        Object.defineProperty(window, 'innerHeight', { get: () => 1080, configurable: true });
+        Object.defineProperty(window, 'outerWidth', { get: () => 1920, configurable: true });
+        Object.defineProperty(window, 'outerHeight', { get: () => 1080, configurable: true });
+        // 设备像素比（PC通常为1或2）
+        Object.defineProperty(window, 'devicePixelRatio', { get: () => 1, configurable: true });
+      } catch (e) {}
+    }
+  
+    function overrideScreenPropertiesForMobile() {
+      try {
+        // 移动端：小屏幕尺寸（根据设备类型设置）
+        let width = 375, height = 667; // iPhone 默认尺寸
+        if (SELECT_TARGET === 'ipad') {
+          width = 768; height = 1024;
+        } else if (SELECT_TARGET === 'android') {
+          width = 412; height = 915; // 常见 Android 尺寸
+        }
+        Object.defineProperty(screen, 'width', { get: () => width, configurable: true });
+        Object.defineProperty(screen, 'height', { get: () => height, configurable: true });
+        Object.defineProperty(screen, 'availWidth', { get: () => width, configurable: true });
+        Object.defineProperty(screen, 'availHeight', { get: () => height - 44, configurable: true }); // 减去状态栏高度
+        Object.defineProperty(window, 'innerWidth', { get: () => width, configurable: true });
+        Object.defineProperty(window, 'innerHeight', { get: () => height, configurable: true });
+        Object.defineProperty(window, 'outerWidth', { get: () => width, configurable: true });
+        Object.defineProperty(window, 'outerHeight', { get: () => height, configurable: true });
+        // 设备像素比（移动端通常为2或3）
+        Object.defineProperty(window, 'devicePixelRatio', { get: () => 2, configurable: true });
+      } catch (e) {}
+    }
+  
+    function overrideTouchSupportForPC() {
+      try {
+        // PC端：移除触摸相关属性
+        Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0, configurable: true });
+        // 覆盖触摸事件检测（不阻止事件，但标记为不支持）
+        try {
+          // 这些属性在PC端应该是undefined
+          if (window.ontouchstart !== undefined) {
+            delete window.ontouchstart;
+          }
+          if (window.ontouchmove !== undefined) {
+            delete window.ontouchmove;
+          }
+          if (window.ontouchend !== undefined) {
+            delete window.ontouchend;
+          }
+        } catch (e) {}
+      } catch (e) {}
+    }
+  
+    function overrideTouchSupportForMobile() {
+      try {
+        // 移动端：保留触摸支持
+        Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5, configurable: true });
+      } catch (e) {}
+    }
+  
+    function overrideMediaQueriesForPC() {
+      try {
+        // PC端：覆盖媒体查询
+        const origMatchMedia = window.matchMedia;
+        window.matchMedia = function(query) {
+          const result = origMatchMedia.call(this, query);
+          // 如果查询包含移动端相关的媒体查询，返回false
+          if (query && typeof query === 'string') {
+            const q = query.toLowerCase();
+            if (q.includes('max-width') && q.includes('768')) {
+              // 移动端媒体查询，返回不匹配
+              return {
+                matches: false,
+                media: query,
+                onchange: null,
+                addListener: function() {},
+                removeListener: function() {},
+                addEventListener: function() {},
+                removeEventListener: function() {},
+                dispatchEvent: function() { return false; }
+              };
+            }
+          }
+          return result;
+        };
+      } catch (e) {}
+    }
+  
+    function overrideHardwareConcurrencyForPC() {
+      try {
+        // PC端通常有更多CPU核心
+        Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8, configurable: true });
+      } catch (e) {}
+    }
+  
+    function overrideHardwareConcurrencyForMobile() {
+      try {
+        // 移动端：较少的CPU核心
+        Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 4, configurable: true });
+      } catch (e) {}
+    }
+  
+    function overrideConnectionForPC() {
+      try {
+        // PC端通常是有线连接
+        if (navigator.connection) {
+          Object.defineProperty(navigator.connection, 'type', { get: () => 'ethernet', configurable: true });
+        }
+      } catch (e) {}
+    }
+  
+    function overrideConnectionForMobile() {
+      try {
+        // 移动端：通常是 wifi 或 cellular
+        if (navigator.connection) {
+          Object.defineProperty(navigator.connection, 'type', { get: () => 'wifi', configurable: true });
+        }
+      } catch (e) {}
+    }
+
     function hijackIframes() {
       try {
         const origCreate = Document.prototype.createElement;
@@ -230,9 +361,25 @@
       } catch (e) {}
     }
   
-    // run overrides asap
+    // run overrides asap - 根据选择的平台判断是否调用
     overrideNavigatorSimple();
     overrideUserAgentData();
+    
+    // 根据平台类型调用相应的覆盖函数
+    if (isPCPlatform) {
+      overrideScreenPropertiesForPC();
+      overrideTouchSupportForPC();
+      overrideMediaQueriesForPC();
+      overrideHardwareConcurrencyForPC();
+      overrideConnectionForPC();
+    } else if (isMobilePlatform) {
+      overrideScreenPropertiesForMobile();
+      overrideTouchSupportForMobile();
+      overrideHardwareConcurrencyForMobile();
+      overrideConnectionForMobile();
+    }
+    
+    // iframe 劫持始终执行
     hijackIframes();
   
     // expose a marker for debugging
