@@ -99,32 +99,116 @@ function buildSecChUa(brands) {
     headers['Sec-CH-UA-Platform'] = headers['sec-ch-ua-platform'];
   } catch(e){}
 
-  // 当使用 mac preset 时，修改 Cookie 和 sec-fetch-site
+  // 当使用 mac preset 时，修改 Cookie、sec-fetch-site 和请求体
   if (presetKey === 'mac') {
     try {
-      // 修改 Cookie 中的 xsecappid
-      if (headers['Cookie'] || headers['cookie']) {
-        const cookieHeader = headers['Cookie'] || headers['cookie'];
-        let newCookie = cookieHeader;
-        // 将 xsecappid=ranchi 替换为 xsecappid=xhs-pc-web
-        newCookie = newCookie.replace(/xsecappid=ranchi/g, 'xsecappid=xhs-pc-web');
-        // 如果 Cookie 中没有 xsecappid，则添加（但通常应该已经存在）
-        if (!newCookie.includes('xsecappid=')) {
-          newCookie = (newCookie ? newCookie + '; ' : '') + 'xsecappid=xhs-pc-web';
+      // 处理 Cookie：HTTP/2 可能使用多个独立的 cookie header，需要合并处理
+      let allCookies = [];
+      let hasXsecappid = false;
+      
+      // 遍历所有 headers，找出所有 cookie 相关的 header（包括大小写变体）
+      for (const key in headers) {
+        if (key && key.toLowerCase() === 'cookie') {
+          const cookieValue = headers[key];
+          // 可能是单个合并的 cookie 字符串，也可能是数组（HTTP/2）
+          if (Array.isArray(cookieValue)) {
+            // 数组形式：每个元素可能是一个完整的 cookie 字符串或单个 cookie
+            for (const item of cookieValue) {
+              if (typeof item === 'string') {
+                // 检查是否包含分号（可能是多个 cookie 合并的）
+                if (item.includes(';')) {
+                  const cookies = item.split(';').map(c => c.trim()).filter(c => c);
+                  allCookies = allCookies.concat(cookies);
+                } else {
+                  // 单个 cookie
+                  allCookies.push(item.trim());
+                }
+              }
+            }
+          } else if (typeof cookieValue === 'string') {
+            // 单个 cookie 字符串，按分号分割
+            const cookies = cookieValue.split(';').map(c => c.trim()).filter(c => c);
+            allCookies = allCookies.concat(cookies);
+          }
         }
-        headers['Cookie'] = newCookie;
-        headers['cookie'] = newCookie;
       }
       
-      // 修改 sec-fetch-site（如果是导航请求，设为 none）
-      if (headers['sec-fetch-dest'] === 'document' || headers['Sec-Fetch-Dest'] === 'document') {
+      // 处理每个 cookie，替换或添加 xsecappid
+      const processedCookies = [];
+      for (let cookie of allCookies) {
+        cookie = cookie.trim();
+        if (!cookie) continue;
+        
+        if (cookie.startsWith('xsecappid=')) {
+          // 替换现有的 xsecappid
+          processedCookies.push('xsecappid=xhs-pc-web');
+          hasXsecappid = true;
+        } else {
+          processedCookies.push(cookie);
+        }
+      }
+      
+      // 如果没有 xsecappid，添加一个
+      if (!hasXsecappid) {
+        processedCookies.push('xsecappid=xhs-pc-web');
+      }
+      
+      // 合并所有 cookie 为一个字符串
+      const mergedCookie = processedCookies.join('; ');
+      
+      // 删除所有旧的 cookie header，然后设置新的合并后的 cookie
+      for (const key in headers) {
+        if (key && key.toLowerCase() === 'cookie') {
+          delete headers[key];
+        }
+      }
+      
+      // 设置回 headers（使用小写，HTTP/2 通常使用小写）
+      headers['cookie'] = mergedCookie;
+      
+      // 修改 sec-fetch-site
+      // 对于导航请求（document），设为 none
+      // 对于 API 请求（empty/其他），保持 same-site 或 same-origin
+      const fetchDest = headers['sec-fetch-dest'] || headers['Sec-Fetch-Dest'] || '';
+      if (fetchDest.toLowerCase() === 'document') {
         headers['sec-fetch-site'] = 'none';
         headers['Sec-Fetch-Site'] = 'none';
+      } else {
+        // API 请求保持 same-site（如果原来就是 same-site 或 same-origin）
+        const currentSite = headers['sec-fetch-site'] || headers['Sec-Fetch-Site'] || 'same-site';
+        if (currentSite === 'same-origin' || currentSite === 'same-site') {
+          headers['sec-fetch-site'] = 'same-site';
+          headers['Sec-Fetch-Site'] = 'same-site';
+        }
       }
     } catch(e){}
   }
 
-  // 返回修改后的请求头
-  $done({ headers: headers });
+  // 处理请求体（如果需要修改 appId）
+  let body = $request.body;
+  if (presetKey === 'mac' && body) {
+    try {
+      // 尝试解析 JSON 请求体
+      if (typeof body === 'string') {
+        const bodyObj = JSON.parse(body);
+        // 如果请求体中有 appId 字段且值为 "ranchi"，可能需要修改
+        // 但根据用户提供的文件，PC 端的请求体 appId 仍然是 "ranchi"，所以暂时不修改
+        // 如果需要修改，可以取消下面的注释：
+        // if (bodyObj.appId === 'ranchi') {
+        //   bodyObj.appId = 'xhs-pc-web';
+        //   body = JSON.stringify(bodyObj);
+        // }
+      }
+    } catch(e) {
+      // 如果不是 JSON，忽略
+    }
+  }
+
+  // 返回修改后的请求
+  const result = { headers: headers };
+  if (body !== undefined && body !== $request.body) {
+    result.body = body;
+  }
+  $done(result);
 })();
 
