@@ -9,7 +9,7 @@
 preset = select,"mac","ios","ipad","android","windows","linux",tag=选择平台,desc=选择要模拟的平台类型（iOS/Mac/iPad/Android/Windows/Linux）
 
 [rewrite]
-^https?:\/\/([^.]+\.)?xiaohongshu\.com\/.* url script-request-header https://raw.githubusercontent.com/yourusername/Loon/main/redbook/ua_presets.js, tag=小红书 UA 预设, argument=[{preset}]
+^https?:\/\/([^.]+\.)?xiaohongshu\.com\/.* url script-request-header https://raw.githubusercontent.com/DailyUtility/Loon/refs/heads/main/redbook/ua_presets.js, tag=小红书 UA 预设, argument=[{preset}]
 
 [mitm]
 xiaohongshu.com
