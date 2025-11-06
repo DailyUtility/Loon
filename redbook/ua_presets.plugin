@@ -1,0 +1,16 @@
+#!name=小红书 UA 预设
+#!desc=替换 User-Agent 和 sec-ch-ua* 请求头，支持在设置面板选择平台预设（iOS/Mac/iPad/Android/Windows/Linux），自动保存选择
+#!author=you
+#!homepage=
+#!icon=
+#!tag=小红书,UA,User-Agent
+
+[Argument]
+preset = select,"mac","ios","ipad","android","windows","linux",tag=选择平台,desc=选择要模拟的平台类型（iOS/Mac/iPad/Android/Windows/Linux）
+
+[rewrite]
+^https?:\/\/([^.]+\.)?xiaohongshu\.com\/.* url script-request-header https://raw.githubusercontent.com/yourusername/Loon/main/redbook/ua_presets.js, tag=小红书 UA 预设, argument=[{preset}]
+
+[mitm]
+xiaohongshu.com
+*.xiaohongshu.com

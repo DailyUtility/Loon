@@ -1,29 +1,3 @@
-# xiaohongshu_ua_presets.plugin
-# Loon plugin: 支持 Settings 面板选择 UA 预设，自动保存到 persistentStore
-# 将此文件放到可访问 URL 后，在 Loon -> Plugin -> Add From URL 导入
-
-[Plugin]
-name = Xiaohongshu UA Presets (Settings)
-version = 1.3
-description = Replace User-Agent and sec-ch-ua* for xiaohongshu.com with selectable presets in Loon Settings panel. Automatically saved to persistentStore. Default: mac
-author = you
-
-[Script]
-# 主脚本，type=http-request
-xiaohongshu_ua_presets = type=http-request,pattern=^https?:\/\/([^.]+\.)?xiaohongshu\.com\/.*,tag=XHS UA Presets,enable=true,script-path=xiaohongshu_ua_presets.js
-# Script Arguments: 在 Loon Settings 面板显示下拉选择
-xiaohongshu_ua_presets_args = type=argument,script=xiaohongshu_ua_presets.js,arg-name=preset,arg-title=选择小红书平台,arg-type=select,arg-values=ios,mac,ipad,android,windows,linux,arg-default=mac
-
-[URL Rewrite]
-# 发往 xiaohongshu.com 的请求交给脚本
-^https?:\/\/([^.]+\.)?xiaohongshu\.com\/.* = script-request-header, xiaohongshu_ua_presets.js
-
-[MITM]
-xiaohongshu.com
-*.xiaohongshu.com
-
-# ===== 脚本内容 =====
-__SCRIPT_BEGIN__
 /*
 xiaohongshu_ua_presets.js
 Loon http-request script
@@ -90,9 +64,12 @@ function buildSecChUa(brands) {
   let presetKey = DEFAULT_PRESET;
   try {
     if (typeof $argument !== 'undefined' && $argument) {
-      // 选择的 preset 存入 persistentStore
-      presetKey = $argument;
-      $persistentStore.write(presetKey, STORE_KEY);
+      // 参数可能是对象 {preset: "mac"} 或直接是字符串 "mac"
+      const argValue = typeof $argument === 'object' && $argument.preset ? $argument.preset : $argument;
+      if (argValue && (argValue in PRESETS)) {
+        presetKey = argValue;
+        $persistentStore.write(presetKey, STORE_KEY);
+      }
     } else if (typeof $persistentStore !== 'undefined' && $persistentStore.read) {
       const v = $persistentStore.read(STORE_KEY);
       if (v && (v in PRESETS)) presetKey = v;
@@ -118,4 +95,4 @@ function buildSecChUa(brands) {
 
   $done({ headers: headers });
 })();
-__SCRIPT_END__
+
