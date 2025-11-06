@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         UA Spoof Presets (iOS / Mac / iPad / Android / Windows / Linux)
+// @name         UA Presets (iOS / Mac / iPad / Android / Windows / Linux)
 // @namespace    https://example.local/
 // @version      1.1
 // @description  在页面 JS 可见层面伪造 navigator.*，提供 6 个预设（ios, mac, ipad, android, windows, linux），修改 SELECT_TARGET 即可切换（仅影响页面 JS，不改变 HTTP 请求头）

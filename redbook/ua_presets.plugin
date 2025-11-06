@@ -1,7 +1,7 @@
-#!name=小红书 UA 预设
-#!desc=替换 User-Agent 和 sec-ch-ua* 请求头，支持在设置面板选择平台预设（iOS/Mac/iPad/Android/Windows/Linux），自动保存选择
-#!author=you
-#!homepage=
+#!name=小红书H5
+#!desc=替换 User-Agent 和 sec-ch-ua* 请求头，使小红书可以在移动端浏览器中使用。支持在设置面板选择平台预设（iOS/Mac/iPad/Android/Windows/Linux），自动保存选择
+#!author=Mar-er
+#!homepage=https://raw.githubusercontent.com/DailyUtility/Loon/refs/heads/main/redbook/ua_presets.plugin
 #!icon=
 #!tag=小红书,UA,User-Agent
 

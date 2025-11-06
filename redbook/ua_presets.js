@@ -1,5 +1,5 @@
 /*
-xiaohongshu_ua_presets.js
+ua_presets.js
 Loon http-request script
 功能：替换 User-Agent 和 sec-ch-ua*，支持通过 Loon Settings 面板选择 preset
 并且自动保存到 persistentStore，下次 Loon 启动后自动恢复选择
