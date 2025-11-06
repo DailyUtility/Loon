@@ -1,0 +1,121 @@
+# xiaohongshu_ua_presets.plugin
+# Loon plugin: 支持 Settings 面板选择 UA 预设，自动保存到 persistentStore
+# 将此文件放到可访问 URL 后，在 Loon -> Plugin -> Add From URL 导入
+
+[Plugin]
+name = Xiaohongshu UA Presets (Settings)
+version = 1.3
+description = Replace User-Agent and sec-ch-ua* for xiaohongshu.com with selectable presets in Loon Settings panel. Automatically saved to persistentStore. Default: mac
+author = you
+
+[Script]
+# 主脚本，type=http-request
+xiaohongshu_ua_presets = type=http-request,pattern=^https?:\/\/([^.]+\.)?xiaohongshu\.com\/.*,tag=XHS UA Presets,enable=true,script-path=xiaohongshu_ua_presets.js
+# Script Arguments: 在 Loon Settings 面板显示下拉选择
+xiaohongshu_ua_presets_args = type=argument,script=xiaohongshu_ua_presets.js,arg-name=preset,arg-title=选择小红书平台,arg-type=select,arg-values=ios,mac,ipad,android,windows,linux,arg-default=mac
+
+[URL Rewrite]
+# 发往 xiaohongshu.com 的请求交给脚本
+^https?:\/\/([^.]+\.)?xiaohongshu\.com\/.* = script-request-header, xiaohongshu_ua_presets.js
+
+[MITM]
+xiaohongshu.com
+*.xiaohongshu.com
+
+# ===== 脚本内容 =====
+__SCRIPT_BEGIN__
+/*
+xiaohongshu_ua_presets.js
+Loon http-request script
+功能：替换 User-Agent 和 sec-ch-ua*，支持通过 Loon Settings 面板选择 preset
+并且自动保存到 persistentStore，下次 Loon 启动后自动恢复选择
+*/
+
+const DEFAULT_PRESET = 'mac';
+const STORE_KEY = 'XHS_UA_PRESET';
+
+// 6 个预设
+const PRESETS = {
+  ios: {
+    ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/605.1.15",
+    platform: "iPhone",
+    mobile: "1",
+    brands: [{ brand: "Safari", version: "17" }]
+  },
+  mac: {
+    ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+    platform: "macOS",
+    mobile: "0",
+    brands: [{ brand: "Safari", version: "17" }]
+  },
+  ipad: {
+    ua: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/605.1.15",
+    platform: "iPad",
+    mobile: "1",
+    brands: [{ brand: "Safari", version: "17" }]
+  },
+  android: {
+    ua: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+    platform: "Android",
+    mobile: "1",
+    brands: [{ brand: "Chromium", version: "120" }, { brand: "Google Chrome", version: "120" }]
+  },
+  windows: {
+    ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    platform: "Windows",
+    mobile: "0",
+    brands: [{ brand: "Chromium", version: "120" }, { brand: "Google Chrome", version: "120" }]
+  },
+  linux: {
+    ua: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    platform: "Linux",
+    mobile: "0",
+    brands: [{ brand: "Chromium", version: "120" }]
+  }
+};
+
+// 构造 sec-ch-ua 字符串
+function buildSecChUa(brands) {
+  if (!Array.isArray(brands) || brands.length === 0) return '"Not A;Brand";v="99"';
+  const parts = brands.map(b => `"${b.brand}";v="${String(b.version || '').split('.')[0] || '0'}"`);
+  parts.push('";Not A Brand";v="99"');
+  return parts.join(', ');
+}
+
+// Loon 脚本入口
+(function () {
+  if (typeof $request === 'undefined' || !$request) { $done({}); return; }
+
+  // 读取用户在 Settings 面板选择的 preset
+  let presetKey = DEFAULT_PRESET;
+  try {
+    if (typeof $argument !== 'undefined' && $argument) {
+      // 选择的 preset 存入 persistentStore
+      presetKey = $argument;
+      $persistentStore.write(presetKey, STORE_KEY);
+    } else if (typeof $persistentStore !== 'undefined' && $persistentStore.read) {
+      const v = $persistentStore.read(STORE_KEY);
+      if (v && (v in PRESETS)) presetKey = v;
+    }
+  } catch(e){}
+
+  const preset = PRESETS[presetKey] || PRESETS[DEFAULT_PRESET];
+
+  const headers = Object.assign({}, $request.headers || {});
+  headers['User-Agent'] = preset.ua;
+  headers['user-agent'] = preset.ua;
+
+  try {
+    const scua = buildSecChUa(preset.brands);
+    headers['sec-ch-ua'] = scua;
+    headers['sec-ch-ua-mobile'] = preset.mobile === "1" ? "?1" : "?0";
+    headers['sec-ch-ua-platform'] = preset.platform || '';
+    headers['sec-ch-ua-full-version-list'] = (preset.brands || []).map(b => `"${b.brand}";v="${b.version || '0'}"`).join(', ');
+    headers['Sec-CH-UA'] = headers['sec-ch-ua'];
+    headers['Sec-CH-UA-Mobile'] = headers['sec-ch-ua-mobile'];
+    headers['Sec-CH-UA-Platform'] = headers['sec-ch-ua-platform'];
+  } catch(e){}
+
+  $done({ headers: headers });
+})();
+__SCRIPT_END__
